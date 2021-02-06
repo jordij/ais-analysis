@@ -46,20 +46,20 @@ def main(args):
         '⚒️  Processing vessel data.. might take a while depending on your input data..'
     )
     vessels = get_vessels()  # list of vessel IDs
-    all_vessels_df = None
+    all_stop_points = None
     for vessel_id in vessels:
         vessel_df = get_vessel_data(vessel_id)
-        if all_vessels_df is None:
-            all_vessels_df = vessel_df
+        stop_pts = get_stop_points(vessel_df)
+        if all_stop_points is None:
+            all_stop_points = stop_pts
         else:
-            all_vessels_df = all_vessels_df.append(vessel_df)
-    stop_pts = get_stop_points(all_vessels_df)
+            all_stop_points = all_stop_points.append(stop_pts)
 
     # Write results to given output file
-    if all_vessels_df is None:
+    if all_stop_points is None:
         print('🚨 Oops something went wrong, no vessel data??')
     else:
-        stop_pts.to_file(args[1], driver="GeoJSON")
+        all_stop_points.to_file(args[1], driver="GeoJSON")
         print('✅ Nice work, %d vessels processed' % len(vessels))
 
 

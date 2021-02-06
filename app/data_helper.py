@@ -60,6 +60,15 @@ def get_vessels():
     return ids
 
 
+def get_stop_points(gdf):
+    # calculate stops with min duraiton of 1h and 1knot based diameter (1852 m)
+    traj = mpd.TrajectoryCollection(gdf, 'userid')
+    stops = mpd.TrajectoryStopDetector(traj).get_stop_segments(
+        min_duration=timedelta(seconds=3600), max_diameter=1852
+    )
+    return stops.get_start_locations()
+
+
 def get_vessel_data(vessel_id):
     """
     Get all DB messages related to given vessel ID and return a tuple
@@ -75,15 +84,6 @@ def get_vessel_data(vessel_id):
             lambda row: shapely.geometry.Point((row.longitude, row.latitude)), axis=1
         ),
     ).set_index('utctimestamp')
-
-
-def get_stop_points(gdf):
-    # calculate stops with min duraiton of 1h and 1knot based diameter (1852 m)
-    traj = mpd.TrajectoryCollection(gdf, 'userid')
-    stops = mpd.TrajectoryStopDetector(traj).get_stop_segments(
-        min_duration=timedelta(seconds=3600), max_diameter=1852
-    )
-    return stops.get_start_locations()
 
 
 def populate_db_from_json(file_path):
