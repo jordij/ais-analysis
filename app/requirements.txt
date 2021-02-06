@@ -1,0 +1,7 @@
+Cython
+cartopy
+geos
+movingpandas
+ijson
+sqlalchemy
+psycopg2
