@@ -1,11 +1,7 @@
-import geopandas as gpd
 import json
-import movingpandas as mpd
 import pandas as pd
-import shapely
 import sqlalchemy as db
 import time
-
 from datetime import datetime, timedelta
 
 MESSAGE_TYPES = [1, 2, 3, 18, 19, 27]
@@ -53,20 +49,8 @@ def get_vessels():
     """
     Returns a list of unique vessel IDs (UserID col from messages table)
     """
-    ids = []
     results = conn.execute("SELECT DISTINCT UserID FROM messages;")
-    for r in results:
-        ids.append(r[0])
-    return ids
-
-
-def get_stop_points(gdf):
-    # calculate stops with min duraiton of 1h and 1knot based diameter (1852 m)
-    traj = mpd.TrajectoryCollection(gdf, 'userid')
-    stops = mpd.TrajectoryStopDetector(traj).get_stop_segments(
-        min_duration=timedelta(seconds=3600), max_diameter=1852
-    )
-    return stops.get_start_locations()
+    return [r[0] for r in results]
 
 
 def get_vessel_data(vessel_id):
@@ -75,15 +59,7 @@ def get_vessel_data(vessel_id):
     wit the dataframe and the stops collection
     """
     query = db.select([messages_tb]).where(messages_tb.columns.userid == vessel_id)
-    df = pd.read_sql(query, conn)
-    # assemble geodf
-    return gpd.GeoDataFrame(
-        df.drop(['latitude', 'longitude'], axis=1),
-        crs='epsg:4326',
-        geometry=df.apply(
-            lambda row: shapely.geometry.Point((row.longitude, row.latitude)), axis=1
-        ),
-    ).set_index('utctimestamp')
+    return pd.read_sql(query, conn)
 
 
 def populate_db_from_json(file_path):

@@ -1,14 +1,15 @@
 import os
+import pandas as pd
 import sys
+from multiprocessing import Pool
 
-
-from data_helper import (
+from db_helper import (
     delete_dupes,
-    get_stop_points,
     populate_db_from_json,
     get_vessels,
     get_vessel_data,
 )
+from df_helper import get_stop_points, get_geodf
 
 
 def main(args):
@@ -38,29 +39,36 @@ def main(args):
     # Populate DB
     print('🚢 Loading vessel data..')
     populate_db_from_json(file_path)
+
     print('🔨 Deleting duplicates (same userid/vessel and timestamp)..')
     delete_dupes()
 
-    # Get stop points for each vessel
-    print(
-        '⚒️  Processing vessel data.. might take a while depending on your input data..'
-    )
-    vessels = get_vessels()  # list of vessel IDs
-    all_stop_points = None
-    for vessel_id in vessels:
-        vessel_df = get_vessel_data(vessel_id)
-        stop_pts = get_stop_points(vessel_df)
-        if all_stop_points is None:
-            all_stop_points = stop_pts
-        else:
-            all_stop_points = all_stop_points.append(stop_pts)
+    # Fetch vessel data from db and process it
+    vessels = get_vessels()  # fetch list of vessel IDs
+    nvessels = len(vessels)
+    print('⚒️  Processing data from %d vessels..' % nvessels)
+    # 10 parallel processes to process all vessel DFs in chunks of 50
+    pool = Pool(processes=10)
+    batch = 50
 
+    all_stop_points = []
+    for i in range(0, nvessels, batch):
+        batch_vessels = vessels[i : i + batch]
+        vessel_dfs = [get_vessel_data(vessel_id) for vessel_id in batch_vessels]
+        vessel_gdfs = pool.map(get_geodf, vessel_dfs)
+        stop_points = pool.map(get_stop_points, vessel_gdfs)
+        batch_stop_points = pd.concat(stop_points)
+        all_stop_points.append(batch_stop_points)
+        print(
+            '     %d Stop points calculated from %d vessels..'
+            % (len(batch_stop_points.index), len(batch_vessels))
+        )
     # Write results to given output file
-    if all_stop_points is None:
-        print('🚨 Oops something went wrong, no vessel data??')
-    else:
-        all_stop_points.to_file(args[1], driver="GeoJSON")
-        print('✅ Nice work, %d vessels processed' % len(vessels))
+    concat_points = pd.concat(all_stop_points)
+    concat_points.to_file(args[1], driver="GeoJSON")
+    print('✅ Nice work, %d vessels processed' % nvessels)
+    print('🎉 %d stop points stored in %s' % (len(concat_points.index), args[1]))
+    pool.close()
 
 
 if __name__ == '__main__':
